@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from typing import Any, Dict, Iterator, List, Optional
 
 from hello_agents import HelloAgentsLLM, ToolRegistry
@@ -51,6 +53,35 @@ Thought: <简短推理>
 Final Answer: <给用户的完整回答>
 """
 
+_TIMEOUT_ANSWER = "本轮推理接近服务端时长上限，已提前停止。请把问题拆得更具体一些，或稍后重试。"
+_FINAL_RE = re.compile(r"Final Answer\s*:\s*(.*)$", re.S | re.I)
+# Held back while streaming so a trailing code fence that parse_react strips is never sent.
+_FINAL_HOLDBACK = 16
+
+
+def _default_time_budget() -> float | None:
+    """Seconds one chat turn may spend before wrapping up (CHAT_TIME_BUDGET, 0 = unlimited).
+
+    On Vercel the function is killed at maxDuration (300s in vercel.json), which would
+    cut the SSE stream mid-answer, so stop starting new steps well before that.
+    """
+    raw = (os.getenv("CHAT_TIME_BUDGET") or "").strip()
+    if raw:
+        try:
+            value = float(raw)
+        except ValueError:
+            value = 0
+        return value if value > 0 else None
+    return 240.0 if on_vercel() else None
+
+
+def _live_final(raw: str) -> Optional[str]:
+    match = _FINAL_RE.search(raw)
+    if not match:
+        return None
+    text = match.group(1).lstrip()
+    return text[:-_FINAL_HOLDBACK] if len(text) > _FINAL_HOLDBACK else ""
+
 
 class CryptoReActAgent:
     """ReAct loop with workspace memory, persistent sessions, and stream events."""
@@ -63,6 +94,7 @@ class CryptoReActAgent:
         llm: HelloAgentsLLM | None = None,
         get_coordinator=None,
         max_steps: int = 8,
+        time_budget: float | None = None,
     ):
         self.workspace = workspace
         self.memory = memory
@@ -70,6 +102,7 @@ class CryptoReActAgent:
         self.llm = llm or HelloAgentsLLM()
         self.get_coordinator = get_coordinator
         self.max_steps = max_steps
+        self.time_budget = time_budget if time_budget is not None else _default_time_budget()
         self.name = workspace.read_identity_name()
         self.tool_registry = self._setup_tools()
 
@@ -89,6 +122,9 @@ class CryptoReActAgent:
         for tool in tools:
             registry.register_tool(tool)
         return registry
+
+    def _out_of_time(self, started: float) -> bool:
+        return self.time_budget is not None and time.monotonic() - started >= self.time_budget
 
     def reload_identity(self) -> None:
         self.name = self.workspace.read_identity_name()
@@ -112,13 +148,23 @@ class CryptoReActAgent:
         tools_used: List[dict] = []
         final_answer = ""
 
+        started = time.monotonic()
         try:
             for step in range(1, self.max_steps + 1):
+                if self._out_of_time(started):
+                    final_answer = _TIMEOUT_ANSWER
+                    yield {"type": "chunk", "content": final_answer}
+                    break
                 yield {"type": "step_start", "step": step, "max_steps": self.max_steps}
                 prompt = self._build_prompt(message, history, scratch)
                 raw = ""
+                streamed = ""
                 for chunk in stream_llm(self.llm, [{"role": "user", "content": prompt}]):
                     raw += chunk
+                    live = _live_final(raw)
+                    if live is not None and len(live) > len(streamed):
+                        yield {"type": "chunk", "content": live[len(streamed):]}
+                        streamed = live
                 parsed = parse_react(raw)
                 thought = parsed.get("thought") or ""
                 if thought:
@@ -126,17 +172,25 @@ class CryptoReActAgent:
 
                 if parsed.get("final"):
                     final_answer = parsed["final"].strip()
-                    for piece in _chunk_text(final_answer):
+                    if not final_answer.startswith(streamed):
+                        final_answer = streamed + final_answer
+                    for piece in _chunk_text(final_answer[len(streamed):]):
                         yield {"type": "chunk", "content": piece}
                     break
 
                 action = parsed.get("action")
                 if not action:
                     final_answer = raw.strip() or "我暂时无法完成这次推理。"
-                    for piece in _chunk_text(final_answer):
+                    if not final_answer.startswith(streamed):
+                        final_answer = streamed + final_answer
+                    for piece in _chunk_text(final_answer[len(streamed):]):
                         yield {"type": "chunk", "content": piece}
                     break
 
+                if self._out_of_time(started):
+                    final_answer = _TIMEOUT_ANSWER
+                    yield {"type": "chunk", "content": final_answer}
+                    break
                 args = parsed.get("input") or {}
                 yield {"type": "tool_start", "tool": action, "args": args}
                 observation = self._run_tool(action, args)

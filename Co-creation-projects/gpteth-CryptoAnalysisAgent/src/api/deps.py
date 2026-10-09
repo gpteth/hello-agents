@@ -15,6 +15,15 @@ _sessions: Optional[SessionStore] = None
 _agent: Optional[Any] = None
 _pipeline: dict[str, Any] = {}
 
+LLM_ENV_HINT = (
+    "请设置 LLM_MODEL_ID、LLM_API_KEY、LLM_BASE_URL："
+    "本地写入 .env；Vercel 在 Project Settings → Environment Variables 中添加后重新部署。"
+)
+
+
+def agent_init_error(exc: Exception) -> str:
+    return f"对话服务初始化失败：{exc}。{LLM_ENV_HINT}"
+
 
 def get_workspace() -> WorkspaceManager:
     global _workspace
