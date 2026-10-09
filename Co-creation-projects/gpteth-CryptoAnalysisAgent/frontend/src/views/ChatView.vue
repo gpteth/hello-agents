@@ -97,7 +97,7 @@ async function send() {
         localStorage.setItem(STORAGE_KEY, event.session_id)
         router.replace({ query: { session: event.session_id } })
       } else if (event.type === 'thought') {
-        assistant.thought = (assistant.thought || '') + (event.content || '')
+        if (event.content) assistant.thought = assistant.thought ? `${assistant.thought}\n${event.content}` : event.content
       } else if (event.type === 'tool_start') {
         assistant.tools.push({ tool: event.tool, args: event.args, result: '', status: 'running' })
       } else if (event.type === 'tool_finish') {
