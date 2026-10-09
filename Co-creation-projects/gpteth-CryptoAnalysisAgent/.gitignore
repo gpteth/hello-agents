@@ -27,6 +27,9 @@ outputs/*.md
 outputs/reports/
 !outputs/sample_report.md
 
+# The repo-root .gitignore ignores every memory/ directory; this one is source code.
+!/src/memory/
+
 # Agent workspace (generated at runtime)
 workspace/memory/
 workspace/sessions/
