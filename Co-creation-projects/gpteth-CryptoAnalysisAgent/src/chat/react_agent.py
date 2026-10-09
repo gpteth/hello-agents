@@ -280,7 +280,8 @@ class CryptoReActAgent:
 
 
 def stream_llm(llm: HelloAgentsLLM, messages: List[dict]) -> Iterator[str]:
-    client = getattr(llm, "client", None)
+    # hello-agents 0.2.x stores the OpenAI client as `_client`.
+    client = getattr(llm, "client", None) or getattr(llm, "_client", None)
     model = getattr(llm, "model", None) or getattr(llm, "model_id", None)
     if client is not None and model:
         yielded = False
