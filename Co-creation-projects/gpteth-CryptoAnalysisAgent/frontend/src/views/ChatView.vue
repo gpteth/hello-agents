@@ -30,7 +30,7 @@ function pushUser(text) {
 }
 
 function startAssistant() {
-  messages.value.push({ role: 'assistant', thought: '', tools: [], content: '' })
+  messages.value.push({ role: 'assistant', thought: '', tools: [], content: '', error: '' })
   return messages.value[messages.value.length - 1]
 }
 
@@ -108,14 +108,16 @@ async function send() {
         }
       } else if (event.type === 'chunk') {
         assistant.content += event.content || ''
+      } else if (event.type === 'done') {
+        if (!assistant.content && event.content) assistant.content = event.content
       } else if (event.type === 'error') {
-        assistant.content = assistant.content || `错误: ${event.error}`
+        assistant.error = event.error || '未知错误'
       }
       scroll()
     }, abort.value.signal)
   } catch (err) {
     if (err.name !== 'AbortError') {
-      assistant.content = assistant.content || err.message
+      assistant.error = err.message || '请求失败'
     }
   } finally {
     loading.value = false
@@ -163,10 +165,14 @@ onMounted(ensureSession)
             <pre v-if="tool.result">{{ tool.result }}</pre>
           </div>
         </div>
-        <div v-if="loading && index === messages.length - 1 && msg.role === 'assistant' && !msg.content" class="dots">
+        <div v-if="loading && index === messages.length - 1 && msg.role === 'assistant' && !msg.content && !msg.error" class="dots">
           <span /><span /><span />
         </div>
         <div v-if="msg.content" class="md" v-html="renderMarkdown(msg.content)" />
+        <div v-if="msg.error" class="chat-error" role="alert">
+          <strong>请求出错</strong>
+          <span>{{ msg.error }}</span>
+        </div>
       </article>
     </div>
 
@@ -237,6 +243,18 @@ onMounted(ensureSession)
   color: inherit;
 }
 .tool.running { border: 1px solid rgba(62, 224, 178, 0.35); }
+.chat-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--bad);
+  color: var(--bad);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
 .dots { display: flex; gap: 6px; padding: 8px 0; }
 .dots span {
   width: 7px;
