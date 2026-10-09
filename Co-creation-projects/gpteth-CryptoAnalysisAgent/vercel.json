@@ -3,7 +3,7 @@
   "buildCommand": "npm ci --prefix frontend && npm run build --prefix frontend && rm -rf public && mkdir -p public && cp -R frontend/dist/. public/",
   "functions": {
     "app.py": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "excludeFiles": "{frontend/node_modules/**,frontend/src/**,outputs/**,workspace/**,web/**,**/*.ipynb,.venv/**,venv/**,requirements-notebook.txt}"
     }
   }

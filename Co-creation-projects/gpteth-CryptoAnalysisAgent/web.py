@@ -10,15 +10,16 @@ Frontend (optional Vite dev server):
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from datetime import datetime
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception):
+    logging.getLogger("web").exception("unhandled error on %s", request.url.path)
+    return JSONResponse(status_code=500, content={"detail": f"服务端错误: {exc}"})
+
 
 if WEB_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

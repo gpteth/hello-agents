@@ -159,15 +159,28 @@ python analyze.py BTC --judge      # 额外执行 LLM Judge 语义评审
 
 **方式三: 部署到 Vercel**
 
-在项目目录执行（需要已登录的 Vercel CLI）：
+1. 在 Vercel 导入仓库，**Root Directory** 设为 `Co-creation-projects/gpteth-CryptoAnalysisAgent`（不要用外层仓库根）。Framework 会识别为 FastAPI，构建命令取自 `vercel.json`，无需改动。
+2. 在 Project Settings → Environment Variables 添加：
 
-```bash
-npx vercel deploy --prod --yes
-```
+   | 变量 | 必填 | 说明 |
+   | --- | --- | --- |
+   | `LLM_MODEL_ID` | 是 | 例如 `deepseek-chat`、`Qwen/Qwen2.5-72B-Instruct` |
+   | `LLM_API_KEY` | 是 | 模型服务的 API Key |
+   | `LLM_BASE_URL` | 是 | OpenAI 兼容地址，例如 `https://api.deepseek.com/v1/` |
+   | `LLM_TIMEOUT` | 否 | 单次 LLM 请求超时秒数，默认 60 |
+   | `LLM_SUB_MODEL_ID` | 否 | 子 Agent 用的小模型 |
+   | `BRAVE_API_KEY` | 否 | 网页搜索；不填走 DuckDuckGo |
+   | `CHAT_TIME_BUDGET` | 否 | 单轮对话最多推理多少秒后收尾，Vercel 上默认 240，`0` 为不限 |
 
-Vercel 项目的 Root Directory 必须是本目录 `Co-creation-projects/gpteth-CryptoAnalysisAgent`，不要指到外层 hello-agents 仓库根。环境变量至少设置 `LLM_MODEL_ID`、`LLM_API_KEY`、`LLM_BASE_URL`。前端构建产物走 CDN，`/api/*` 走 FastAPI。
+3. 部署：推送到 Git 自动部署，或在本目录执行 `npx vercel deploy --prod`。修改环境变量后需要重新部署才会生效。
+4. 验证：打开 `https://<你的域名>/api/health`，`llm_configured` 应为 `true`。
 
-Hobby 计划的函数时长上限是 60 秒。一轮三维分析经常超过这个时间，对话里的短回复更可能成功。需要完整研报时，把 `vercel.json` 里 `functions.app.py.maxDuration` 提高到计划允许的上限（Pro 一般为 300）。会话、记忆和研报写在 `/tmp`，冷启动后不会保留。线上不注册代码执行工具。
+部署说明：
+
+- 前端构建产物走 CDN，其余请求（`/api/*` 和前端路由）进 FastAPI 函数。对话接口 `/api/chat/send/stream` 是 SSE 流式响应，每 10 秒发一次心跳，Vercel 会边生成边下发。
+- `vercel.json` 里 `maxDuration` 为 300 秒（Fluid compute 下 Hobby 与 Pro 默认都可用；如果项目关闭了 Fluid compute 且是 Hobby，改成 60，并设置 `CHAT_TIME_BUDGET=40`）。临近时限时 Agent 会停止新的推理步骤并给出提示，不会让连接被中途掐断。一轮完整的三维研报可能仍然超时，可以把问题拆小。
+- 函数目录只读，会话、记忆和研报写在 `/tmp`，实例回收后不会保留，不同实例之间也不共享。线上不注册代码执行工具。
+- 本地模拟：`npx vercel build` 会生成 `.vercel/output`。也可以直接执行 `python web.py` 运行同一个 FastAPI 应用。
 
 **方式四: Jupyter (适合学习/交互探索)**
 
