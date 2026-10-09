@@ -35,3 +35,8 @@ workspace/*.md
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# Vercel build output and local link
+public/
+.vercel/
+.env.local

@@ -26,7 +26,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-OUTPUT_DIR = Path(__file__).parent / "outputs" / "reports"
+from src.runtime_paths import reports_dir
+
+OUTPUT_DIR = reports_dir()
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,12}$")
 
 ANALYSIS_PROMPT = (

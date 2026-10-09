@@ -21,7 +21,9 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-DEFAULT_LEDGER = "outputs/signals.jsonl"
+from ..runtime_paths import signals_path
+
+DEFAULT_LEDGER = signals_path()
 
 # 核算周期: 信号发出后多久检验一次
 HORIZONS = {"24h": 24 * 3600, "7d": 7 * 24 * 3600}

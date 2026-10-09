@@ -118,6 +118,8 @@ CryptoAnalysisAgent 是一个面向加密货币交易场景的多智能体分析
 
 ```bash
 pip install -r requirements.txt
+# 只在本地跑 main.ipynb 时再装笔记本依赖
+pip install -r requirements-notebook.txt
 ```
 
 ### 配置 API
@@ -155,7 +157,19 @@ python analyze.py BTC --judge      # 额外执行 LLM Judge 语义评审
 0 10 * * * cd /path/to/project && python analyze.py --settle
 ```
 
-**方式三: Jupyter (适合学习/交互探索)**
+**方式三: 部署到 Vercel**
+
+在项目目录执行（需要已登录的 Vercel CLI）：
+
+```bash
+npx vercel deploy --prod --yes
+```
+
+Vercel 项目的 Root Directory 必须是本目录 `Co-creation-projects/gpteth-CryptoAnalysisAgent`，不要指到外层 hello-agents 仓库根。环境变量至少设置 `LLM_MODEL_ID`、`LLM_API_KEY`、`LLM_BASE_URL`。前端构建产物走 CDN，`/api/*` 走 FastAPI。
+
+Hobby 计划的函数时长上限是 60 秒。一轮三维分析经常超过这个时间，对话里的短回复更可能成功。需要完整研报时，把 `vercel.json` 里 `functions.app.py.maxDuration` 提高到计划允许的上限（Pro 一般为 300）。会话、记忆和研报写在 `/tmp`，冷启动后不会保留。线上不注册代码执行工具。
+
+**方式四: Jupyter (适合学习/交互探索)**
 
 ```bash
 jupyter lab

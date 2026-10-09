@@ -28,7 +28,7 @@ from src.api.deps import get_pipeline, get_workspace
 
 ROOT = Path(__file__).parent
 WEB_DIR = ROOT / "web"
-FRONT_DIST = ROOT / "frontend" / "dist"
+FRONT_DIRS = [ROOT / "frontend" / "dist", ROOT / "public"]
 
 app = FastAPI(title="CryptoAnalysisAgent", version="0.2.0")
 app.add_middleware(
@@ -149,8 +149,16 @@ def legacy_index():
     return FileResponse(WEB_DIR / "index.html")
 
 
-if FRONT_DIST.is_dir() and (FRONT_DIST / "index.html").is_file():
-    assets_dir = FRONT_DIST / "assets"
+def _frontend_dir() -> Path | None:
+    for directory in FRONT_DIRS:
+        if (directory / "index.html").is_file():
+            return directory
+    return None
+
+
+_front = _frontend_dir()
+if _front is not None:
+    assets_dir = _front / "assets"
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
 
@@ -158,10 +166,10 @@ if FRONT_DIST.is_dir() and (FRONT_DIST / "index.html").is_file():
     def spa(full_path: str):
         if full_path.startswith("api/") or full_path.startswith("static/"):
             raise HTTPException(status_code=404, detail="Not found")
-        candidate = FRONT_DIST / full_path
+        candidate = _front / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(FRONT_DIST / "index.html")
+        return FileResponse(_front / "index.html")
 else:
     @app.get("/")
     def index():

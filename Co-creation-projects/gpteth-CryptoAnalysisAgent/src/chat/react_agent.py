@@ -10,6 +10,7 @@ from hello_agents import HelloAgentsLLM, ToolRegistry
 
 from ..compat import tool_text, wrap_tools
 from ..memory.store import MemoryStore
+from ..runtime_paths import on_vercel
 from ..session.store import SessionStore
 from ..workspace.manager import WorkspaceManager
 from ..tools.builtin import (
@@ -76,10 +77,11 @@ class CryptoReActAgent:
         tools = [
             MemoryTool(self.memory),
             FileTool(self.workspace.workspace_path),
-            ExecuteTool(self.workspace.workspace_path),
             WebSearchTool(),
             WebFetchTool(),
         ]
+        if not on_vercel():
+            tools.insert(2, ExecuteTool(self.workspace.workspace_path))
         if self.get_coordinator is not None:
             tools.insert(0, CryptoAnalysisTool(self.get_coordinator))
         wrap_tools(*tools)

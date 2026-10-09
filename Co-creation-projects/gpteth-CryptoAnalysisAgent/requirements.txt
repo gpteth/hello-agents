@@ -1,9 +1,11 @@
-# Core dependencies
-hello-agents[all]>=0.2.7
+# Runtime dependencies (also installed on Vercel).
+# Pin below 1.0: hello-agents 1.x drops the APIs this project imports.
+# Do not use the [all] extra here — it pulls torch and will not fit a Vercel function.
+hello-agents>=0.2.7,<1
 
 # Data processing
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=2.0.0
 
 # HTTP requests
 requests>=2.31.0
@@ -12,14 +14,6 @@ aiohttp>=3.9.0
 # Environment variables
 python-dotenv>=1.0.0
 
-# Local web console (HelloClaw-style FastAPI + SSE)
+# Web console (FastAPI + SSE)
 fastapi>=0.115.0
 uvicorn>=0.30.0
-
-# Visualization (optional, for notebook display)
-matplotlib>=3.7.0
-
-# Jupyter
-jupyter>=1.0.0
-jupyterlab>=4.0.0
-ipywidgets>=8.0.0

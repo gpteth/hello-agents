@@ -1,0 +1,6 @@
+# Optional local extras for main.ipynb. Not installed on Vercel.
+-r requirements.txt
+matplotlib>=3.7.0
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+ipywidgets>=8.0.0

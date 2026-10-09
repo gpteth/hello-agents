@@ -1,0 +1,16 @@
+.venv
+venv
+env
+.env
+.env.*
+!.env.example
+frontend/node_modules
+frontend/dist
+outputs
+workspace/sessions
+workspace/memory
+**/*.ipynb
+/memory
+__pycache__
+.git
+.claude

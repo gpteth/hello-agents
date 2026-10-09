@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any, Optional
 
 from ..memory.store import MemoryStore
+from ..runtime_paths import workspace_dir
 from ..session.store import SessionStore
 from ..workspace.manager import WorkspaceManager
 
@@ -19,7 +19,7 @@ _pipeline: dict[str, Any] = {}
 def get_workspace() -> WorkspaceManager:
     global _workspace
     if _workspace is None:
-        _workspace = WorkspaceManager(os.getenv("WORKSPACE_PATH", "./workspace"))
+        _workspace = WorkspaceManager(workspace_dir())
         _workspace.ensure_workspace_exists()
     return _workspace
 
