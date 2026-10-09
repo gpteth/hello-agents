@@ -22,7 +22,8 @@ LLM_ENV_HINT = (
 
 
 def agent_init_error(exc: Exception) -> str:
-    return f"对话服务初始化失败：{exc}。{LLM_ENV_HINT}"
+    reason = str(exc).strip().rstrip("。.") or type(exc).__name__
+    return f"对话服务初始化失败：{reason}。{LLM_ENV_HINT}"
 
 
 def get_workspace() -> WorkspaceManager:
