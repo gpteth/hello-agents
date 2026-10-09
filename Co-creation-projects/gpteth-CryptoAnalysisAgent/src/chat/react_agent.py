@@ -6,6 +6,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Optional
 
 from hello_agents import HelloAgentsLLM, ToolRegistry
@@ -57,6 +58,8 @@ _TIMEOUT_ANSWER = "本轮推理接近服务端时长上限，已提前停止。�
 _FINAL_RE = re.compile(r"Final Answer\s*:\s*(.*)$", re.S | re.I)
 # Held back while streaming so a trailing code fence that parse_react strips is never sent.
 _FINAL_HOLDBACK = 16
+# Room left for the LLM call already in flight and the session write after the deadline check.
+_DEADLINE_MARGIN = 45.0
 
 
 def _default_time_budget() -> float | None:
@@ -73,6 +76,18 @@ def _default_time_budget() -> float | None:
             value = 0
         return value if value > 0 else None
     return 240.0 if on_vercel() else None
+
+
+def _seconds_until_vercel_deadline() -> float | None:
+    """Remaining seconds before Vercel kills this invocation, when the runtime reports it."""
+    try:
+        from vercel_runtime import get_deadline
+    except ImportError:
+        return None
+    deadline = get_deadline()
+    if deadline is None:
+        return None
+    return (deadline - datetime.now(timezone.utc)).total_seconds()
 
 
 def _live_final(raw: str) -> Optional[str]:
@@ -123,8 +138,16 @@ class CryptoReActAgent:
             registry.register_tool(tool)
         return registry
 
-    def _out_of_time(self, started: float) -> bool:
-        return self.time_budget is not None and time.monotonic() - started >= self.time_budget
+    def _turn_deadline(self) -> float | None:
+        """Monotonic time after which no new step or tool call is started."""
+        now = time.monotonic()
+        limits = []
+        if self.time_budget is not None:
+            limits.append(now + self.time_budget)
+        remaining = _seconds_until_vercel_deadline()
+        if remaining is not None:
+            limits.append(now + remaining - _DEADLINE_MARGIN)
+        return min(limits) if limits else None
 
     def reload_identity(self) -> None:
         self.name = self.workspace.read_identity_name()
@@ -148,10 +171,10 @@ class CryptoReActAgent:
         tools_used: List[dict] = []
         final_answer = ""
 
-        started = time.monotonic()
+        deadline = self._turn_deadline()
         try:
             for step in range(1, self.max_steps + 1):
-                if self._out_of_time(started):
+                if deadline is not None and time.monotonic() >= deadline:
                     final_answer = _TIMEOUT_ANSWER
                     yield {"type": "chunk", "content": final_answer}
                     break
@@ -187,7 +210,7 @@ class CryptoReActAgent:
                         yield {"type": "chunk", "content": piece}
                     break
 
-                if self._out_of_time(started):
+                if deadline is not None and time.monotonic() >= deadline:
                     final_answer = _TIMEOUT_ANSWER
                     yield {"type": "chunk", "content": final_answer}
                     break
@@ -260,6 +283,7 @@ def stream_llm(llm: HelloAgentsLLM, messages: List[dict]) -> Iterator[str]:
     client = getattr(llm, "client", None)
     model = getattr(llm, "model", None) or getattr(llm, "model_id", None)
     if client is not None and model:
+        yielded = False
         try:
             stream = client.chat.completions.create(
                 model=model,
@@ -273,10 +297,12 @@ def stream_llm(llm: HelloAgentsLLM, messages: List[dict]) -> Iterator[str]:
                 delta = chunk.choices[0].delta
                 content = getattr(delta, "content", None) or ""
                 if content:
+                    yielded = True
                     yield content
             return
         except Exception:
-            pass
+            if yielded:
+                raise
     text = _invoke(llm, messages)
     if text:
         yield text
