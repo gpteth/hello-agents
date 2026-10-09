@@ -2,6 +2,8 @@
 # Pin below 1.0: hello-agents 1.x drops the APIs this project imports.
 # Do not use the [all] extra here — it pulls torch and will not fit a Vercel function.
 hello-agents>=0.2.7,<1
+# `import hello_agents` loads its evaluation package, which needs this but does not declare it.
+huggingface_hub>=0.20
 
 # Data processing
 pandas>=2.0.0
